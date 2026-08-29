@@ -89,6 +89,7 @@
   .mode-btn{ flex:1; padding:9px 0; background:var(--panel2); border:1px solid var(--border); color:var(--text-dim); border-radius:var(--radius); font-size:13.5px; cursor:pointer; }
   .mode-btn.active{ background:var(--amber); border-color:var(--amber); color:#26210e; font-weight:600; }
   .mode-hint{ font-size:12px; color:var(--text-dim); margin-top:6px; }
+  #pin-map{ height:260px; border-radius:8px; border:1px solid var(--border); }
 
   @media (min-width: 860px){
     main{ max-width:1100px; padding:20px 24px; }
@@ -186,6 +187,18 @@
     </div>
 
     <div class="gps-status" id="gps-status"></div>
+
+    <div class="gps-row" style="margin-top:10px;">
+      <button type="button" class="btn btn-outline btn-block" id="btn-toggle-pinmap">📍 Chọn / chỉnh vị trí trên bản đồ</button>
+    </div>
+    <div id="pin-map-wrap" style="display:none; margin-top:10px;">
+      <div class="mode-toggle" style="margin-bottom:8px;">
+        <button type="button" class="mode-btn" id="pin-tile-street">Đường phố</button>
+        <button type="button" class="mode-btn active" id="pin-tile-satellite">Vệ tinh</button>
+      </div>
+      <div id="pin-map"></div>
+      <div class="gps-status">Chạm vào bản đồ để đặt ghim, hoặc kéo ghim để chỉnh cho đúng vị trí thực tế.</div>
+    </div>
 
     <label>Tình trạng hiện trạng</label>
     <input type="text" id="f-tinhtrang" placeholder="VD: Cột nghiêng, sứ nứt, cần thay...">
@@ -427,6 +440,63 @@ document.getElementById('btn-quickgps').addEventListener('click', ()=>{
   }, { enableHighAccuracy:true, timeout:15000 });
 });
 
+let pinMap = null, pinMarker = null;
+let pinTileLayers = null;
+
+function switchPinTile(kind){
+  if(!pinMap || !pinTileLayers) return;
+  Object.values(pinTileLayers).forEach(l=>{ if(pinMap.hasLayer(l)) pinMap.removeLayer(l); });
+  pinTileLayers[kind].addTo(pinMap);
+  document.getElementById('pin-tile-street').classList.toggle('active', kind==='street');
+  document.getElementById('pin-tile-satellite').classList.toggle('active', kind==='satellite');
+}
+document.getElementById('pin-tile-street').addEventListener('click', ()=>switchPinTile('street'));
+document.getElementById('pin-tile-satellite').addEventListener('click', ()=>switchPinTile('satellite'));
+
+document.getElementById('btn-toggle-pinmap').addEventListener('click', ()=>{
+  const wrap = document.getElementById('pin-map-wrap');
+  const showing = wrap.style.display !== 'none';
+  wrap.style.display = showing ? 'none' : 'block';
+  if(!showing) setTimeout(initPinMap, 50);
+});
+
+function initPinMap(){
+  const latVal = parseFloat(document.getElementById('f-lat').value);
+  const lngVal = parseFloat(document.getElementById('f-lng').value);
+  const hasPoint = !isNaN(latVal) && !isNaN(lngVal);
+  const center = hasPoint ? [latVal, lngVal] : [16.75, 107.0];
+  const zoom = hasPoint ? 18 : 9;
+
+  if(!pinMap){
+    pinMap = L.map('pin-map').setView(center, zoom);
+    pinTileLayers = {
+      street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }),
+      satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri' })
+    };
+    pinTileLayers.satellite.addTo(pinMap);
+    pinMap.on('click', e=>setPin(e.latlng.lat, e.latlng.lng));
+  } else {
+    pinMap.setView(center, zoom);
+  }
+  if(hasPoint) setPin(latVal, lngVal);
+  setTimeout(()=>pinMap.invalidateSize(), 100);
+}
+
+function setPin(lat, lng){
+  document.getElementById('f-lat').value = lat.toFixed(6);
+  document.getElementById('f-lng').value = lng.toFixed(6);
+  if(!pinMarker){
+    pinMarker = L.marker([lat, lng], { draggable:true }).addTo(pinMap);
+    pinMarker.on('dragend', ()=>{
+      const p = pinMarker.getLatLng();
+      document.getElementById('f-lat').value = p.lat.toFixed(6);
+      document.getElementById('f-lng').value = p.lng.toFixed(6);
+    });
+  } else {
+    pinMarker.setLatLng([lat, lng]);
+  }
+}
+
 function distMeters(lat1, lng1, lat2, lng2){
   const R = 6371000;
   const toRad = d => d * Math.PI / 180;
@@ -540,6 +610,8 @@ document.getElementById('btn-save').addEventListener('click', async ()=>{
   pendingPhotos = [];
   renderPhotoPreview();
   stopWatch();
+  if(pinMarker){ pinMap.removeLayer(pinMarker); pinMarker = null; }
+  document.getElementById('pin-map-wrap').style.display = 'none';
   if(currentMode === 'tung_cot') document.getElementById('f-loaicot').value = 'Cột đỡ';
   document.getElementById('gps-status').textContent = '';
   msg.style.color = 'var(--ok)';

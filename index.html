@@ -89,6 +89,16 @@
   .mode-btn{ flex:1; padding:9px 0; background:var(--panel2); border:1px solid var(--border); color:var(--text-dim); border-radius:var(--radius); font-size:13.5px; cursor:pointer; }
   .mode-btn.active{ background:var(--amber); border-color:var(--amber); color:#26210e; font-weight:600; }
   .mode-hint{ font-size:12px; color:var(--text-dim); margin-top:6px; }
+
+  @media (min-width: 860px){
+    main{ max-width:1100px; padding:20px 24px; }
+    #tab-form{ max-width:520px; }
+    #list-container{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:12px; align-items:start; }
+    #list-container .card{ margin-bottom:0; }
+    .list-toolbar, .export-row{ max-width:640px; }
+    #map{ height:520px; }
+    .login-box{ max-width:380px; }
+  }
 </style>
 </head>
 <body>

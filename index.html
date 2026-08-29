@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#1b1d1f">
+<title>Khảo sát hiện trường</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  :root{
+    --bg:#1b1d1f; --panel:#232629; --panel2:#2b2f33; --border:#3a3e42;
+    --amber:#e2a13d; --text:#eceae4; --text-dim:#9a9994; --danger:#c0533f; --ok:#5a9b6e;
+    --radius:6px;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding-bottom:60px; }
+  header{ padding:18px 16px 14px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:20; }
+  header h1{ margin:0; font-size:18px; font-weight:600; }
+  header .sub{ margin-top:3px; font-size:12.5px; color:var(--text-dim); font-family:'Courier New',monospace; }
+  .sync-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:var(--ok); }
+  .sync-dot.off{ background:var(--danger); }
+  .tabs{ display:flex; border-bottom:1px solid var(--border); position:sticky; top:57px; background:var(--bg); z-index:20; }
+  .tab{ flex:1; text-align:center; padding:11px 0; font-size:13.5px; color:var(--text-dim); border-bottom:2px solid transparent; cursor:pointer; user-select:none; }
+  .tab.active{ color:var(--amber); border-bottom-color:var(--amber); }
+  main{ padding:14px 16px; max-width:640px; margin:0 auto; }
+  section{ display:none; }
+  section.active{ display:block; }
+  label{ display:block; font-size:12px; color:var(--text-dim); margin:14px 0 5px; text-transform:uppercase; letter-spacing:.4px;}
+  label:first-of-type{ margin-top:0; }
+  input[type=text], select, textarea{ width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:10px 11px; border-radius:var(--radius); font-size:15px; font-family:inherit; }
+  textarea{ min-height:64px; resize:vertical; }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:10px 14px; border-radius:var(--radius); font-size:14px; cursor:pointer; }
+  .btn:active{ transform:scale(0.98); }
+  .btn-block{ width:100%; }
+  .btn-amber{ background:var(--amber); border-color:var(--amber); color:#26210e; font-weight:600; }
+  .btn-outline{ background:transparent; }
+  .btn-danger{ color:var(--danger); border-color:var(--danger); background:transparent; }
+  .btn-sm{ padding:6px 10px; font-size:12.5px; }
+  .gps-row{ display:flex; gap:8px; align-items:flex-end; }
+  .gps-row .btn{ margin-top:0; height:41px; white-space:nowrap; }
+  .gps-status{ font-size:12px; color:var(--text-dim); margin-top:6px; font-family:'Courier New',monospace; }
+  .gps-status.ok{ color:var(--ok); }
+  .gps-status.err{ color:var(--danger); }
+  .photo-input input{ display:none; }
+  .photo-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+  .photo-thumb{ position:relative; aspect-ratio:1; border-radius:var(--radius); overflow:hidden; border:1px solid var(--border); }
+  .photo-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-thumb .rm{ position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,.65); color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .save-bar{ margin-top:20px; }
+  .form-msg{ font-size:12.5px; color:var(--danger); margin-top:8px; min-height:16px; }
+  .list-toolbar{ display:flex; gap:8px; margin-bottom:12px; }
+  .list-toolbar select{ flex:1; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 13px; margin-bottom:10px; }
+  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .card-ma{ font-size:15px; font-weight:600; font-family:'Courier New',monospace; }
+  .badge{ font-size:10.5px; padding:2px 7px; border-radius:20px; text-transform:uppercase; letter-spacing:.3px; font-weight:600; white-space:nowrap; }
+  .badge-tram{ background:#2f3f52; color:#7fa8d6; }
+  .badge-duong{ background:#3f3323; color:var(--amber); }
+  .card-meta{ font-size:12px; color:var(--text-dim); margin-top:4px; font-family:'Courier New',monospace; }
+  .card-note{ font-size:13.5px; margin-top:8px; color:var(--text); }
+  .card-photos{ display:flex; gap:6px; margin-top:9px; overflow-x:auto; }
+  .card-photos img{ width:56px; height:56px; object-fit:cover; border-radius:4px; border:1px solid var(--border); flex-shrink:0; }
+  .card-actions{ display:flex; gap:8px; margin-top:10px; }
+  .empty{ text-align:center; color:var(--text-dim); font-size:13.5px; padding:40px 10px; }
+  #map{ height:260px; border-radius:8px; margin-bottom:14px; border:1px solid var(--border); }
+  .export-row{ display:flex; gap:8px; margin-top:4px; }
+  .badge-import{ background:var(--panel2); color:var(--text-dim); border:1px solid var(--border); }
+  .config-warning{ margin:16px; padding:14px; background:#3f2323; border:1px solid var(--danger); border-radius:8px; font-size:13.5px; line-height:1.5; }
+  .login-screen{ display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  .login-box{ max-width:340px; width:100%; text-align:center; }
+  .login-box h1{ font-size:22px; margin-bottom:8px; }
+  .login-box p{ color:var(--text-dim); font-size:14px; margin-bottom:22px; }
+  .login-msg{ font-size:12.5px; color:var(--danger); margin-top:10px; min-height:16px; }
+  .row2{ display:flex; gap:10px; }
+  .row2 > div{ flex:1; }
+  .dist-row{ display:none; align-items:baseline; gap:8px; margin-top:12px; padding:12px 14px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); }
+  .dist-value{ font-size:26px; font-weight:700; color:var(--amber); font-family:'Courier New',monospace; }
+  .dist-label{ font-size:12.5px; color:var(--text-dim); }
+  .mode-toggle{ display:flex; gap:8px; }
+  .mode-btn{ flex:1; padding:9px 0; background:var(--panel2); border:1px solid var(--border); color:var(--text-dim); border-radius:var(--radius); font-size:13.5px; cursor:pointer; }
+  .mode-btn.active{ background:var(--amber); border-color:var(--amber); color:#26210e; font-weight:600; }
+  .mode-hint{ font-size:12px; color:var(--text-dim); margin-top:6px; }
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="login-screen">
+  <div class="login-box">
+    <h1>Khảo sát hiện trường</h1>
+    <p>Đăng nhập bằng tài khoản Google để bắt đầu</p>
+    <button class="btn btn-amber btn-block" id="btn-google-signin">Đăng nhập bằng Google</button>
+    <div class="login-msg" id="login-msg"></div>
+  </div>
+</div>
+
+<div id="app-root" style="display:none;">
+
+<header>
+  <h1>Khảo sát hiện trường</h1>
+  <div class="sub">
+    <span class="sync-dot" id="sync-dot"></span><span id="header-count">Đang tải...</span>
+    <span style="float:right; font-size:12px;"><span id="user-name" style="color:var(--text-dim);"></span> · <a href="#" id="btn-signout" style="color:var(--text-dim);">Đăng xuất</a></span>
+  </div>
+</header>
+
+<div id="config-warning-slot"></div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="form">Ghi nhận</div>
+  <div class="tab" data-tab="list">Danh sách</div>
+  <div class="tab" data-tab="map">Bản đồ</div>
+</div>
+
+<main>
+  <section id="tab-form" class="active">
+    <label>Loại đối tượng</label>
+    <select id="f-loai">
+      <option value="Trạm biến áp">Trạm biến áp</option>
+      <option value="Đường dây">Đường dây</option>
+    </select>
+
+    <div id="loaicot-wrap" style="display:none;">
+      <label>Loại cột</label>
+      <select id="f-loaicot">
+        <option value="Cột đỡ">Cột đỡ</option>
+        <option value="Cột néo">Cột néo</option>
+      </select>
+    </div>
+
+    <label>Mã trạm / tuyến</label>
+    <input type="text" id="f-ma" placeholder="VD: TBA-QT-014">
+
+    <div id="mode-wrap" style="display:none;">
+      <label>Chế độ khảo sát</label>
+      <div class="mode-toggle">
+        <button type="button" class="mode-btn active" id="mode-tungcot" data-mode="tung_cot">Từng cột</button>
+        <button type="button" class="mode-btn" id="mode-khoangneo" data-mode="khoang_neo">Khoảng néo</button>
+      </div>
+      <div class="mode-hint" id="mode-hint">Đo lần lượt từng vị trí cột, theo dõi khoảng cách tới cột trước.</div>
+    </div>
+
+    <label>Tọa độ GPS</label>
+    <div class="row2">
+      <div><input type="text" id="f-lat" placeholder="Vĩ độ (lat)" inputmode="decimal"></div>
+      <div><input type="text" id="f-lng" placeholder="Kinh độ (lng)" inputmode="decimal"></div>
+    </div>
+
+    <div id="gps-tungcot-block">
+      <label>So sánh khoảng cách với điểm</label>
+      <select id="f-refpoint"><option value="">— Không so sánh —</option></select>
+
+      <div class="dist-row" id="dist-display">
+        <div class="dist-value" id="dist-value">— m</div>
+        <div class="dist-label" id="dist-label">tới điểm tham chiếu</div>
+      </div>
+
+      <div class="gps-row" style="margin-top:10px;">
+        <button class="btn btn-outline btn-block" id="btn-watch">Bắt đầu theo dõi vị trí</button>
+      </div>
+      <div class="gps-row" style="margin-top:8px; display:none;" id="lock-row">
+        <button class="btn btn-amber btn-block" id="btn-lock">Chốt tọa độ</button>
+      </div>
+    </div>
+
+    <div id="gps-khoangneo-block" style="display:none; margin-top:10px;">
+      <button class="btn btn-amber btn-block" id="btn-quickgps">Lấy vị trí</button>
+    </div>
+
+    <div class="gps-status" id="gps-status"></div>
+
+    <label>Tình trạng hiện trạng</label>
+    <input type="text" id="f-tinhtrang" placeholder="VD: Cột nghiêng, sứ nứt, cần thay...">
+
+    <label>Ghi chú</label>
+    <textarea id="f-ghichu" placeholder="Chi tiết bổ sung..."></textarea>
+
+    <label>Ảnh hiện trường</label>
+    <div class="photo-input">
+      <button class="btn btn-outline btn-block" id="btn-add-photo">+ Chụp / chọn ảnh</button>
+      <input type="file" id="f-photo" accept="image/*" capture="environment" multiple>
+    </div>
+    <div class="photo-grid" id="photo-preview"></div>
+
+    <div class="save-bar">
+      <button class="btn btn-amber btn-block" id="btn-save">Lưu điểm khảo sát</button>
+      <div class="form-msg" id="form-msg"></div>
+    </div>
+  </section>
+
+  <section id="tab-list">
+    <div class="list-toolbar">
+      <select id="filter-loai">
+        <option value="">Tất cả loại</option>
+        <option value="Trạm biến áp">Trạm biến áp</option>
+        <option value="Đường dây">Đường dây</option>
+      </select>
+    </div>
+    <div class="export-row">
+      <button class="btn btn-outline btn-block" id="btn-export">↓ Xuất CSV</button>
+      <button class="btn btn-outline btn-block" id="btn-export-kmz">↓ Xuất KMZ</button>
+    </div>
+    <div class="export-row" style="margin-top:8px;">
+      <button class="btn btn-outline btn-block" id="btn-import-excel">↑ Nhập Excel</button>
+      <button class="btn btn-outline btn-block" id="btn-import-kmz">↑ Nhập KMZ/KML</button>
+    </div>
+    <input type="file" id="import-excel-input" accept=".xlsx,.xls,.csv" style="display:none">
+    <input type="file" id="import-kmz-input" accept=".kmz,.kml" style="display:none">
+    <div style="margin-top:14px" id="list-container"></div>
+  </section>
+
+  <section id="tab-map">
+    <div class="mode-toggle" style="margin-bottom:10px;">
+      <button type="button" class="mode-btn active" id="tile-street">Bản đồ</button>
+      <button type="button" class="mode-btn" id="tile-satellite">Vệ tinh</button>
+    </div>
+    <div id="map"></div>
+    <div class="sub" style="color:var(--text-dim); font-size:12.5px;">Chạm vào ghim để xem chi tiết điểm khảo sát. Điểm màu xám nhạt là dữ liệu nhập từ Excel/KMZ.</div>
+  </section>
+</main>
+
+</div>
+
+<script>
+if(typeof FIREBASE_CONFIG === 'undefined' || !FIREBASE_CONFIG.apiKey){
+  document.getElementById('config-warning-slot').innerHTML = `
+    <div class="config-warning">
+      Chưa cấu hình Firebase. Mở file <b>firebase-config.js</b>, dán thông tin project Firebase của anh vào (xem README.md), rồi tải lại trang.
+    </div>`;
+  document.getElementById('header-count').textContent = 'Chưa kết nối database';
+  document.getElementById('sync-dot').classList.add('off');
+  throw new Error('Missing Firebase config');
+}
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db = firebase.firestore();
+db.enablePersistence({ synchronizeTabs:true }).catch(()=>{});
+
+let records = [];
+let pendingPhotos = [];
+let leafletMap = null;
+let markerLayer = null;
+let unsubscribe = null;
+
+function setSyncStatus(online){
+  document.getElementById('sync-dot').classList.toggle('off', !online);
+}
+window.addEventListener('online', ()=>setSyncStatus(true));
+window.addEventListener('offline', ()=>setSyncStatus(false));
+setSyncStatus(navigator.onLine);
+
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+document.getElementById('btn-google-signin').addEventListener('click', ()=>{
+  const msg = document.getElementById('login-msg');
+  msg.textContent = '';
+  auth.signInWithPopup(googleProvider).catch(err=>{
+    if(err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/operation-not-supported-in-this-environment'){
+      auth.signInWithRedirect(googleProvider);
+    } else if(err.code !== 'auth/popup-closed-by-user'){
+      msg.textContent = 'Lỗi đăng nhập: ' + err.message;
+    }
+  });
+});
+
+document.getElementById('btn-signout').addEventListener('click', (e)=>{
+  e.preventDefault();
+  if(unsubscribe) unsubscribe();
+  auth.signOut();
+});
+
+auth.getRedirectResult().catch(err=>{
+  document.getElementById('login-msg').textContent = 'Lỗi đăng nhập: ' + err.message;
+});
+
+auth.onAuthStateChanged(user=>{
+  if(user){
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-root').style.display = 'block';
+    document.getElementById('user-name').textContent = user.displayName || user.email || '';
+    startListening();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-root').style.display = 'none';
+  }
+});
+
+function startListening(){
+  if(unsubscribe) unsubscribe();
+  unsubscribe = db.collection('khao_sat').orderBy('thoigian','desc').onSnapshot(async snap=>{
+    const out = [];
+    for(const doc of snap.docs){
+      const data = doc.data();
+      out.push({ id: doc.id, ...data });
+    }
+    records = out;
+    updateHeaderCount();
+    populateRefSelect();
+    if(document.getElementById('tab-list').classList.contains('active')) renderList();
+    if(document.getElementById('tab-map').classList.contains('active')) renderMap();
+  }, err=>{
+    document.getElementById('header-count').textContent = 'Lỗi đồng bộ: ' + err.message;
+  });
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('main section').forEach(s=>s.classList.toggle('active', s.id==='tab-'+name));
+  if(name==='list') renderList();
+  if(name==='map') setTimeout(renderMap, 50);
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click', ()=>switchTab(t.dataset.tab)));
+
+function compressImage(file){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      const maxW = 700;
+      const scale = Math.min(1, maxW / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.5));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('btn-add-photo').addEventListener('click', ()=> document.getElementById('f-photo').click());
+document.getElementById('f-photo').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files);
+  for(const file of files){
+    try{ pendingPhotos.push(await compressImage(file)); }catch(err){}
+  }
+  e.target.value = '';
+  renderPhotoPreview();
+});
+function renderPhotoPreview(){
+  const grid = document.getElementById('photo-preview');
+  grid.innerHTML = '';
+  pendingPhotos.forEach((src, i)=>{
+    const div = document.createElement('div');
+    div.className = 'photo-thumb';
+    div.innerHTML = `<img src="${src}"><div class="rm" data-i="${i}">✕</div>`;
+    grid.appendChild(div);
+  });
+  grid.querySelectorAll('.rm').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      pendingPhotos.splice(Number(el.dataset.i), 1);
+      renderPhotoPreview();
+    });
+  });
+}
+
+let currentMode = 'tung_cot';
+
+function updateLoaiVisibility(){
+  const isDuongDay = document.getElementById('f-loai').value === 'Đường dây';
+  document.getElementById('loaicot-wrap').style.display = isDuongDay ? 'block' : 'none';
+  document.getElementById('mode-wrap').style.display = isDuongDay ? 'block' : 'none';
+  if(!isDuongDay){
+    stopWatch();
+    setMode('tung_cot');
+  }
+}
+document.getElementById('f-loai').addEventListener('change', updateLoaiVisibility);
+
+function setMode(mode){
+  currentMode = mode;
+  document.getElementById('mode-tungcot').classList.toggle('active', mode==='tung_cot');
+  document.getElementById('mode-khoangneo').classList.toggle('active', mode==='khoang_neo');
+  document.getElementById('gps-tungcot-block').style.display = mode==='tung_cot' ? 'block' : 'none';
+  document.getElementById('gps-khoangneo-block').style.display = mode==='khoang_neo' ? 'block' : 'none';
+  document.getElementById('mode-hint').textContent = mode==='tung_cot'
+    ? 'Đo lần lượt từng vị trí cột, theo dõi khoảng cách tới cột trước.'
+    : 'Chỉ lấy nhanh tọa độ 2 đầu khoảng néo — cột đỡ ở giữa chia đều trên bản vẽ sau.';
+  if(mode==='khoang_neo'){
+    stopWatch();
+    document.getElementById('f-loaicot').value = 'Cột néo';
+  }
+}
+document.getElementById('mode-tungcot').addEventListener('click', ()=>setMode('tung_cot'));
+document.getElementById('mode-khoangneo').addEventListener('click', ()=>setMode('khoang_neo'));
+
+document.getElementById('btn-quickgps').addEventListener('click', ()=>{
+  const status = document.getElementById('gps-status');
+  if(!navigator.geolocation){
+    status.className = 'gps-status err';
+    status.textContent = 'Thiết bị không hỗ trợ GPS.';
+    return;
+  }
+  status.className = 'gps-status';
+  status.textContent = 'Đang lấy vị trí...';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    document.getElementById('f-lat').value = pos.coords.latitude.toFixed(6);
+    document.getElementById('f-lng').value = pos.coords.longitude.toFixed(6);
+    status.className = 'gps-status ok';
+    status.textContent = `Đã lấy vị trí — độ chính xác ~${Math.round(pos.coords.accuracy)}m`;
+  }, err=>{
+    status.className = 'gps-status err';
+    status.textContent = 'Không lấy được vị trí: ' + err.message;
+  }, { enableHighAccuracy:true, timeout:15000 });
+});
+
+function distMeters(lat1, lng1, lat2, lng2){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function populateRefSelect(){
+  const sel = document.getElementById('f-refpoint');
+  const current = sel.value;
+  const pointRecords = records.filter(r=>r.hinhthuc !== 'duong');
+  sel.innerHTML = '<option value="">— Không so sánh —</option>' +
+    pointRecords.map(r => `<option value="${r.id}">${escapeHtml(r.ma)} (${r.loai})</option>`).join('');
+  if(pointRecords.some(r=>r.id===current)){
+    sel.value = current;
+  } else if(pointRecords.length){
+    sel.value = pointRecords[0].id;
+  }
+  document.getElementById('dist-display').style.display = sel.value ? 'flex' : 'none';
+}
+
+document.getElementById('f-refpoint').addEventListener('change', ()=>{
+  document.getElementById('dist-display').style.display = document.getElementById('f-refpoint').value ? 'flex' : 'none';
+});
+
+let watchId = null;
+
+function stopWatch(){
+  if(watchId !== null){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  document.getElementById('btn-watch').textContent = 'Bắt đầu theo dõi vị trí';
+  document.getElementById('lock-row').style.display = 'none';
+}
+
+document.getElementById('btn-watch').addEventListener('click', ()=>{
+  if(watchId !== null){ stopWatch(); return; }
+  const status = document.getElementById('gps-status');
+  if(!navigator.geolocation){
+    status.className = 'gps-status err';
+    status.textContent = 'Thiết bị không hỗ trợ GPS.';
+    return;
+  }
+  document.getElementById('btn-watch').textContent = 'Dừng theo dõi';
+  document.getElementById('lock-row').style.display = 'block';
+  status.className = 'gps-status';
+  status.textContent = 'Đang bắt tín hiệu GPS...';
+
+  watchId = navigator.geolocation.watchPosition(pos=>{
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    document.getElementById('f-lat').value = lat.toFixed(6);
+    document.getElementById('f-lng').value = lng.toFixed(6);
+    status.className = 'gps-status ok';
+    status.textContent = `Độ chính xác ~${Math.round(pos.coords.accuracy)}m — đang cập nhật liên tục`;
+
+    const refId = document.getElementById('f-refpoint').value;
+    const ref = records.find(r=>r.id===refId);
+    if(ref){
+      const d = distMeters(lat, lng, ref.lat, ref.lng);
+      document.getElementById('dist-value').textContent = Math.round(d) + ' m';
+      document.getElementById('dist-label').textContent = 'tới ' + ref.ma;
+    }
+  }, err=>{
+    status.className = 'gps-status err';
+    status.textContent = 'Lỗi GPS: ' + err.message;
+  }, { enableHighAccuracy:true, maximumAge:1000, timeout:15000 });
+});
+
+document.getElementById('btn-lock').addEventListener('click', ()=>{
+  stopWatch();
+  const status = document.getElementById('gps-status');
+  status.className = 'gps-status ok';
+  status.textContent = 'Đã chốt tọa độ.';
+});
+
+document.getElementById('btn-save').addEventListener('click', async ()=>{
+  const msg = document.getElementById('form-msg');
+  const loai = document.getElementById('f-loai').value;
+  const ma = document.getElementById('f-ma').value.trim();
+  const lat = document.getElementById('f-lat').value.trim();
+  const lng = document.getElementById('f-lng').value.trim();
+  const tinhtrang = document.getElementById('f-tinhtrang').value.trim();
+  const ghichu = document.getElementById('f-ghichu').value.trim();
+
+  if(!ma){ msg.textContent = 'Nhập mã trạm / tuyến trước khi lưu.'; return; }
+  if(!lat || !lng || isNaN(Number(lat)) || isNaN(Number(lng))){ msg.textContent = 'Cần tọa độ hợp lệ — bấm "Lấy vị trí" hoặc nhập tay.'; return; }
+  msg.textContent = '';
+
+  const docData = {
+    loai, ma, lat:Number(lat), lng:Number(lng), tinhtrang, ghichu,
+    loaicot: loai==='Đường dây' ? document.getElementById('f-loaicot').value : null,
+    chedokhaosat: loai==='Đường dây' ? currentMode : null,
+    hinhthuc: 'diem', toado: null,
+    nguon: 'khao_sat',
+    images: pendingPhotos.slice(),
+    thoigian: new Date().toISOString()
+  };
+
+  try{
+    await db.collection('khao_sat').add(docData);
+  }catch(err){
+    msg.textContent = 'Lỗi khi lưu: ' + err.message;
+    return;
+  }
+
+  document.getElementById('f-ma').value = '';
+  document.getElementById('f-lat').value = '';
+  document.getElementById('f-lng').value = '';
+  document.getElementById('f-tinhtrang').value = '';
+  document.getElementById('f-ghichu').value = '';
+  pendingPhotos = [];
+  renderPhotoPreview();
+  stopWatch();
+  if(currentMode === 'tung_cot') document.getElementById('f-loaicot').value = 'Cột đỡ';
+  document.getElementById('gps-status').textContent = '';
+  msg.style.color = 'var(--ok)';
+  msg.textContent = navigator.onLine ? 'Đã lưu.' : 'Đã lưu offline — sẽ đồng bộ khi có mạng.';
+  setTimeout(()=>{ msg.textContent=''; msg.style.color='var(--danger)'; }, 2500);
+});
+
+function updateHeaderCount(){
+  document.getElementById('header-count').textContent = records.length + ' điểm đã lưu';
+}
+
+async function deleteRecord(id){
+  if(!confirm('Xóa điểm khảo sát này?')) return;
+  try{ await db.collection('khao_sat').doc(id).delete(); }catch(err){}
+}
+
+function lineLengthMeters(coords){
+  let total = 0;
+  for(let i=1;i<coords.length;i++){
+    total += distMeters(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+  }
+  return total;
+}
+
+function renderList(){
+  const container = document.getElementById('list-container');
+  const filter = document.getElementById('filter-loai').value;
+  const filtered = filter ? records.filter(r=>r.loai===filter) : records;
+  if(filtered.length===0){
+    container.innerHTML = '<div class="empty">Chưa có điểm khảo sát nào. Vào tab "Ghi nhận" để thêm.</div>';
+    return;
+  }
+  container.innerHTML = filtered.map(r=>{
+    if(r.hinhthuc === 'duong'){
+      const len = lineLengthMeters(r.toado || []);
+      const dt = new Date(r.thoigian);
+      const dtStr = dt.toLocaleDateString('vi-VN') + ' ' + dt.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+      return `
+        <div class="card">
+          <div class="card-top">
+            <div class="card-ma">${escapeHtml(r.ma)}</div>
+            <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
+              ${r.nguon==='import' ? '<span class="badge badge-import">Nhập từ file</span>' : ''}
+              <span class="badge badge-duong">Tuyến dây</span>
+            </div>
+          </div>
+          <div class="card-meta">${(r.toado||[]).length} đỉnh · dài ~${(len/1000).toFixed(2)} km · ${dtStr}</div>
+          ${r.tinhtrang ? `<div class="card-note"><b>Tình trạng:</b> ${escapeHtml(r.tinhtrang)}</div>` : ''}
+          ${r.ghichu ? `<div class="card-note">${escapeHtml(r.ghichu)}</div>` : ''}
+          <div class="card-actions">
+            <button class="btn btn-sm btn-outline" onclick="switchTab('map')">Xem trên bản đồ</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')">Xóa</button>
+          </div>
+        </div>
+      `;
+    }
+    const badgeClass = r.loai==='Trạm biến áp' ? 'badge-tram' : 'badge-duong';
+    const dt = new Date(r.thoigian);
+    const dtStr = dt.toLocaleDateString('vi-VN') + ' ' + dt.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    return `
+      <div class="card">
+        <div class="card-top">
+          <div class="card-ma">${escapeHtml(r.ma)}</div>
+          <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
+            ${r.nguon==='import' ? '<span class="badge badge-import">Nhập từ file</span>' : ''}
+            <span class="badge ${badgeClass}">${r.loai}</span>
+          </div>
+        </div>
+        <div class="card-meta">${r.lat.toFixed(6)}, ${r.lng.toFixed(6)} · ${dtStr}${r.loaicot ? ' · ' + r.loaicot : ''}${r.chedokhaosat==='khoang_neo' ? ' · khoảng néo' : ''}</div>
+        ${r.tinhtrang ? `<div class="card-note"><b>Tình trạng:</b> ${escapeHtml(r.tinhtrang)}</div>` : ''}
+        ${r.ghichu ? `<div class="card-note">${escapeHtml(r.ghichu)}</div>` : ''}
+        ${(r.images||[]).length ? `<div class="card-photos">${r.images.map(src=>`<img src="${src}">`).join('')}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn btn-sm btn-outline" onclick="openInMaps(${r.lat},${r.lng})">Mở bản đồ</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')">Xóa</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+document.getElementById('filter-loai').addEventListener('change', renderList);
+
+function openInMaps(lat, lng){ window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+const tileLayers = {
+  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles © Esri' })
+};
+
+document.getElementById('tile-street').addEventListener('click', ()=>switchTile('street'));
+document.getElementById('tile-satellite').addEventListener('click', ()=>switchTile('satellite'));
+function switchTile(kind){
+  if(!leafletMap) return;
+  Object.values(tileLayers).forEach(l=>{ if(leafletMap.hasLayer(l)) leafletMap.removeLayer(l); });
+  tileLayers[kind].addTo(leafletMap);
+  document.getElementById('tile-street').classList.toggle('active', kind==='street');
+  document.getElementById('tile-satellite').classList.toggle('active', kind==='satellite');
+}
+
+function renderMap(){
+  if(!leafletMap){
+    leafletMap = L.map('map').setView([16.75, 107.0], 9);
+    tileLayers.street.addTo(leafletMap);
+    markerLayer = L.layerGroup().addTo(leafletMap);
+  }
+  markerLayer.clearLayers();
+  const pts = [];
+  records.forEach(r=>{
+    const isImport = r.nguon === 'import';
+    if(r.hinhthuc === 'duong' && Array.isArray(r.toado) && r.toado.length > 1){
+      const color = isImport ? '#8a8a86' : '#e2a13d';
+      const poly = L.polyline(r.toado, { color, weight:3, opacity: isImport ? 0.6 : 0.9 }).addTo(markerLayer);
+      poly.bindPopup(`<b>${escapeHtml(r.ma)}</b><br>Tuyến đường dây${isImport ? ' (nhập từ file)' : ''}${r.tinhtrang ? '<br>'+escapeHtml(r.tinhtrang) : ''}`);
+      r.toado.forEach(p=>pts.push(p));
+      return;
+    }
+    const color = isImport ? '#8a8a86' : (r.loai==='Trạm biến áp' ? '#7fa8d6' : '#e2a13d');
+    const marker = L.circleMarker([r.lat, r.lng], { radius:7, color:color, fillColor:color, fillOpacity: isImport ? 0.4 : 0.85, weight:1.5 }).addTo(markerLayer);
+    marker.bindPopup(`<b>${escapeHtml(r.ma)}</b><br>${r.loai}${isImport ? ' (nhập từ file)' : ''}${r.tinhtrang ? '<br>'+escapeHtml(r.tinhtrang) : ''}`);
+    pts.push([r.lat, r.lng]);
+  });
+  if(pts.length) leafletMap.fitBounds(pts, { padding:[30,30], maxZoom:15 });
+  setTimeout(()=>leafletMap.invalidateSize(), 100);
+}
+
+document.getElementById('btn-export').addEventListener('click', ()=>{
+  if(records.length===0){ alert('Chưa có dữ liệu để xuất.'); return; }
+  const header = ['Mã','Loại','Loại cột','Chế độ khảo sát','Nguồn','Vĩ độ','Kinh độ','Tình trạng','Ghi chú','Số ảnh','Thời gian'];
+  const rows = records.map(r=>{
+    if(r.hinhthuc === 'duong'){
+      const len = lineLengthMeters(r.toado || []);
+      const first = (r.toado && r.toado[0]) || [r.lat, r.lng];
+      return [
+        r.ma, r.loai, '', 'Tuyến (KMZ)',
+        r.nguon==='import' ? 'Nhập từ file' : 'Khảo sát thực địa',
+        first[0], first[1], r.tinhtrang||'',
+        `Tuyến ${(r.toado||[]).length} đỉnh, dài ~${(len/1000).toFixed(2)}km. ${r.ghichu||''}`.trim(),
+        0, r.thoigian
+      ];
+    }
+    return [
+      r.ma, r.loai, r.loaicot||'',
+      r.chedokhaosat==='khoang_neo' ? 'Khoảng néo' : (r.chedokhaosat==='tung_cot' ? 'Từng cột' : ''),
+      r.nguon==='import' ? 'Nhập từ file' : 'Khảo sát thực địa',
+      r.lat, r.lng, r.tinhtrang||'', (r.ghichu||'').replace(/\n/g,' '), (r.images||[]).length, r.thoigian
+    ];
+  });
+  const csv = [header, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'khao-sat-hien-truong-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+function escapeXml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.getElementById('btn-export-kmz').addEventListener('click', async ()=>{
+  if(records.length===0){ alert('Chưa có dữ liệu để xuất.'); return; }
+  const placemarks = records.map(r=>{
+    const desc = [r.loai, r.loaicot, r.tinhtrang, r.ghichu].filter(Boolean).join(' — ');
+    if(r.hinhthuc === 'duong' && Array.isArray(r.toado)){
+      const coordStr = r.toado.map(([lat,lng])=>`${lng},${lat},0`).join(' ');
+      return `<Placemark><name>${escapeXml(r.ma)}</name><description><![CDATA[${desc}]]></description><LineString><tessellate>1</tessellate><coordinates>${coordStr}</coordinates></LineString></Placemark>`;
+    }
+    return `<Placemark><name>${escapeXml(r.ma)}</name><description><![CDATA[${desc}]]></description><Point><coordinates>${r.lng},${r.lat},0</coordinates></Point></Placemark>`;
+  }).join('\n');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Khảo sát hiện trường</name>\n${placemarks}\n</Document></kml>`;
+  const zip = new JSZip();
+  zip.file('doc.kml', kml);
+  const blob = await zip.generateAsync({ type:'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'khao-sat-hien-truong-' + new Date().toISOString().slice(0,10) + '.kmz';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-import-excel').addEventListener('click', ()=> document.getElementById('import-excel-input').click());
+document.getElementById('import-excel-input').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type:'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+    let count = 0, skipped = 0;
+    for(const row of rows){
+      const ma = String(row['Mã'] ?? row['ma'] ?? row['Ma'] ?? '').trim();
+      const lat = parseFloat(row['Vĩ độ'] ?? row['lat'] ?? row['Lat']);
+      const lng = parseFloat(row['Kinh độ'] ?? row['lng'] ?? row['Lng']);
+      if(!ma || isNaN(lat) || isNaN(lng)){ skipped++; continue; }
+      const loai = String(row['Loại'] ?? row['loai'] ?? 'Đường dây').trim() || 'Đường dây';
+      await db.collection('khao_sat').add({
+        ma, loai, lat, lng,
+        loaicot: String(row['Loại cột'] ?? '').trim() || null,
+        chedokhaosat: null, hinhthuc: 'diem', toado: null,
+        tinhtrang: String(row['Tình trạng'] ?? '').trim(),
+        ghichu: String(row['Ghi chú'] ?? '').trim(),
+        nguon: 'import',
+        images: [],
+        thoigian: new Date().toISOString()
+      });
+      count++;
+    }
+    alert(`Đã nhập ${count} điểm.` + (skipped ? ` Bỏ qua ${skipped} dòng thiếu mã hoặc tọa độ.` : ''));
+  }catch(err){
+    alert('Lỗi đọc file Excel: ' + err.message);
+  }
+  e.target.value = '';
+});
+
+function parseCoordsBlock(text){
+  return text.trim().split(/\s+/).map(pair=>{
+    const parts = pair.split(',');
+    return [parseFloat(parts[1]), parseFloat(parts[0])];
+  }).filter(p=>!isNaN(p[0]) && !isNaN(p[1]));
+}
+
+document.getElementById('btn-import-kmz').addEventListener('click', ()=> document.getElementById('import-kmz-input').click());
+document.getElementById('import-kmz-input').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    let kmlText;
+    if(file.name.toLowerCase().endsWith('.kmz')){
+      const zip = await JSZip.loadAsync(file);
+      const kmlFileName = Object.keys(zip.files).find(n=>n.toLowerCase().endsWith('.kml'));
+      if(!kmlFileName) throw new Error('Không tìm thấy file .kml trong KMZ.');
+      kmlText = await zip.files[kmlFileName].async('text');
+    } else {
+      kmlText = await file.text();
+    }
+    const xml = new DOMParser().parseFromString(kmlText, 'text/xml');
+    const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+    let countPoint = 0, countLine = 0, skipped = 0;
+    for(const pm of placemarks){
+      const nameEl = pm.getElementsByTagName('name')[0];
+      const descEl = pm.getElementsByTagName('description')[0];
+      const lineEl = pm.getElementsByTagName('LineString')[0];
+      const pointEl = pm.getElementsByTagName('Point')[0];
+
+      if(lineEl){
+        const coordText = lineEl.getElementsByTagName('coordinates')[0]?.textContent;
+        const coords = coordText ? parseCoordsBlock(coordText) : [];
+        if(coords.length < 2){ skipped++; continue; }
+        await db.collection('khao_sat').add({
+          ma: nameEl ? nameEl.textContent.trim() : ('Tuyến-' + (countLine+1)),
+          loai: 'Đường dây', hinhthuc: 'duong', toado: coords,
+          loaicot: null, chedokhaosat: null, lat: coords[0][0], lng: coords[0][1],
+          tinhtrang: '', ghichu: descEl ? descEl.textContent.trim() : '',
+          nguon: 'import', images: [],
+          thoigian: new Date().toISOString()
+        });
+        countLine++;
+        continue;
+      }
+
+      if(pointEl){
+        const coordText = pointEl.getElementsByTagName('coordinates')[0]?.textContent?.trim();
+        if(!coordText){ skipped++; continue; }
+        const [lngStr, latStr] = coordText.split(',');
+        const lat = parseFloat(latStr), lng = parseFloat(lngStr);
+        if(isNaN(lat) || isNaN(lng)){ skipped++; continue; }
+        await db.collection('khao_sat').add({
+          ma: nameEl ? nameEl.textContent.trim() : ('KMZ-' + (countPoint+1)),
+          loai: 'Đường dây', hinhthuc: 'diem', toado: null,
+          lat, lng, loaicot: null, chedokhaosat: null,
+          tinhtrang: '', ghichu: descEl ? descEl.textContent.trim() : '',
+          nguon: 'import', images: [],
+          thoigian: new Date().toISOString()
+        });
+        countPoint++;
+        continue;
+      }
+
+      skipped++;
+    }
+    alert(`Đã nhập ${countPoint} điểm, ${countLine} tuyến đường dây.` + (skipped ? ` Bỏ qua ${skipped} đối tượng khác (vùng/polygon chưa hỗ trợ).` : ''));
+  }catch(err){
+    alert('Lỗi đọc file KMZ/KML: ' + err.message);
+  }
+  e.target.value = '';
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+
+</body>
+</html>

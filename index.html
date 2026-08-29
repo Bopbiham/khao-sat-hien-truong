@@ -90,17 +90,9 @@
   .mode-btn.active{ background:var(--amber); border-color:var(--amber); color:#26210e; font-weight:600; }
   .mode-hint{ font-size:12px; color:var(--text-dim); margin-top:6px; }
   #pin-map{ height:260px; border-radius:8px; border:1px solid var(--border); }
-  .mapselect-screen{ min-height:100vh; padding:28px 16px 60px; }
-  .mapselect-box{ max-width:640px; width:100%; margin:0 auto; }
-  .mapselect-header{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  .mapselect-header h1{ font-size:20px; margin:0; }
-  .mapselect-box > p{ color:var(--text-dim); font-size:13.5px; margin:8px 0 0; }
-  .new-map-row{ display:flex; gap:8px; margin-top:16px; }
-  .new-map-row input{ flex:1; }
-  .map-card{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; }
-  .map-card:active{ transform:scale(0.99); }
-  .map-card-name{ font-size:15px; font-weight:600; }
-  .map-card-meta{ font-size:12px; color:var(--text-dim); margin-top:3px; font-family:'Courier New',monospace; }
+  .map-selector-row{ display:flex; gap:8px; margin-top:10px; }
+  .map-selector-row select{ flex:1; background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:var(--radius); font-size:13.5px; }
+  .map-selector-row .btn{ white-space:nowrap; }
   .leaflet-tooltip.map-label{ background:rgba(27,29,31,0.92); border:1px solid var(--border); color:var(--text); font-size:11px; padding:2px 6px; border-radius:4px; box-shadow:none; font-family:'Courier New',monospace; }
   .leaflet-tooltip.map-label::before{ display:none; }
 
@@ -126,28 +118,17 @@
   </div>
 </div>
 
-<div id="map-select-screen" class="mapselect-screen" style="display:none;">
-  <div class="mapselect-box">
-    <div class="mapselect-header">
-      <h1>Chọn bản đồ khảo sát</h1>
-      <a href="#" id="btn-signout-2" style="color:var(--text-dim); font-size:12.5px;">Đăng xuất</a>
-    </div>
-    <p>Mở lại bản đồ đã có, hoặc tạo bản đồ mới cho đợt khảo sát này. Các bản đồ không liên quan tới nhau.</p>
-    <div class="new-map-row">
-      <input type="text" id="new-map-name" placeholder="Tên bản đồ mới, VD: Tuyến 371 Vĩnh Linh">
-      <button class="btn btn-amber" id="btn-create-map">+ Tạo</button>
-    </div>
-    <div id="map-list-container" style="margin-top:18px;"></div>
-  </div>
-</div>
-
 <div id="app-root" style="display:none;">
 
 <header>
-  <h1 id="current-map-title">Khảo sát hiện trường</h1>
+  <h1>Khảo sát hiện trường</h1>
   <div class="sub">
     <span class="sync-dot" id="sync-dot"></span><span id="header-count">Đang tải...</span>
-    <span style="float:right; font-size:12px;"><a href="#" id="btn-back-maps" style="color:var(--text-dim);">← Đổi bản đồ</a> · <a href="#" id="btn-signout" style="color:var(--text-dim);">Đăng xuất</a></span>
+    <span style="float:right; font-size:12px;"><span id="user-name" style="color:var(--text-dim);"></span> · <a href="#" id="btn-signout" style="color:var(--text-dim);">Đăng xuất</a></span>
+  </div>
+  <div class="map-selector-row">
+    <select id="map-selector"><option value="">Đang tải bản đồ...</option></select>
+    <button class="btn btn-sm btn-outline" id="btn-new-map" type="button">+ Bản đồ mới</button>
   </div>
 </header>
 
@@ -337,12 +318,6 @@ document.getElementById('btn-signout').addEventListener('click', (e)=>{
   if(unsubscribeMaps) unsubscribeMaps();
   auth.signOut();
 });
-document.getElementById('btn-signout-2').addEventListener('click', (e)=>{
-  e.preventDefault();
-  if(unsubscribe) unsubscribe();
-  if(unsubscribeMaps) unsubscribeMaps();
-  auth.signOut();
-});
 
 auth.getRedirectResult().catch(err=>{
   document.getElementById('login-msg').textContent = 'Lỗi đăng nhập: ' + err.message;
@@ -351,11 +326,11 @@ auth.getRedirectResult().catch(err=>{
 auth.onAuthStateChanged(user=>{
   if(user){
     document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('user-name') && (document.getElementById('user-name').textContent = user.displayName || user.email || '');
-    showMapSelect();
+    document.getElementById('app-root').style.display = 'block';
+    document.getElementById('user-name').textContent = user.displayName || user.email || '';
+    loadMapList();
   } else {
     document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('map-select-screen').style.display = 'none';
     document.getElementById('app-root').style.display = 'none';
     if(unsubscribe){ unsubscribe(); unsubscribe = null; }
     if(unsubscribeMaps){ unsubscribeMaps(); unsubscribeMaps = null; }
@@ -363,88 +338,56 @@ auth.onAuthStateChanged(user=>{
   }
 });
 
-function showMapSelect(){
-  document.getElementById('app-root').style.display = 'none';
-  document.getElementById('map-select-screen').style.display = 'block';
-  if(unsubscribe){ unsubscribe(); unsubscribe = null; }
-  currentMapId = null;
-  loadMapList();
-}
-
 function loadMapList(){
   if(unsubscribeMaps) unsubscribeMaps();
   unsubscribeMaps = db.collection('ban_do').orderBy('thoigian_tao','desc').onSnapshot(snap=>{
     const maps = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-    renderMapList(maps);
+    populateMapSelector(maps);
   }, err=>{
-    document.getElementById('map-list-container').innerHTML = `<div class="empty">Lỗi tải danh sách bản đồ: ${escapeHtml(err.message)}</div>`;
+    document.getElementById('header-count').textContent = 'Lỗi tải bản đồ: ' + err.message;
   });
 }
 
-function renderMapList(maps){
-  const container = document.getElementById('map-list-container');
+function populateMapSelector(maps){
+  const sel = document.getElementById('map-selector');
   if(maps.length === 0){
-    container.innerHTML = '<div class="empty">Chưa có bản đồ nào. Tạo bản đồ mới ở trên để bắt đầu.</div>';
+    sel.innerHTML = '<option value="">— Chưa có bản đồ —</option>';
+    currentMapId = null;
+    records = [];
+    updateHeaderCount();
+    if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+    if(document.getElementById('tab-list').classList.contains('active')) renderList();
+    if(document.getElementById('tab-map').classList.contains('active')) renderMap();
     return;
   }
-  container.innerHTML = maps.map(m=>{
-    const dt = m.thoigian_tao ? new Date(m.thoigian_tao) : null;
-    const dtStr = dt ? dt.toLocaleDateString('vi-VN') : '';
-    return `
-      <div class="map-card" data-id="${m.id}">
-        <div>
-          <div class="map-card-name">${escapeHtml(m.ten || '(Không tên)')}</div>
-          <div class="map-card-meta">${m.soDiem || 0} điểm · tạo ${dtStr}</div>
-        </div>
-        <button class="btn btn-sm btn-danger" data-del="${m.id}" type="button">Xóa</button>
-      </div>`;
-  }).join('');
-  container.querySelectorAll('.map-card').forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-del]')) return;
-      const m = maps.find(x=>x.id===el.dataset.id);
-      openMap(m.id, m.ten || '(Không tên)');
-    });
-  });
-  container.querySelectorAll('[data-del]').forEach(btn=>{
-    btn.addEventListener('click', async (e)=>{
-      e.stopPropagation();
-      if(!confirm('Xóa bản đồ này và toàn bộ điểm khảo sát bên trong? Không thể hoàn tác.')) return;
-      btn.textContent = 'Đang xóa...';
-      await deleteMap(btn.dataset.del);
-    });
-  });
+  sel.innerHTML = maps.map(m=>`<option value="${m.id}">${escapeHtml(m.ten || '(Không tên)')}</option>`).join('');
+  const stillExists = maps.some(m=>m.id === currentMapId);
+  const target = stillExists ? maps.find(m=>m.id===currentMapId) : maps[0];
+  sel.value = target.id;
+  currentMapId = target.id;
+  currentMapName = target.ten || '(Không tên)';
+  if(!unsubscribe) startListening();
 }
 
-document.getElementById('btn-create-map').addEventListener('click', async ()=>{
-  const input = document.getElementById('new-map-name');
-  const ten = input.value.trim();
-  if(!ten){ input.focus(); return; }
-  const docRef = await db.collection('ban_do').add({ ten, thoigian_tao: new Date().toISOString(), soDiem: 0 });
-  input.value = '';
-  openMap(docRef.id, ten);
+document.getElementById('map-selector').addEventListener('change', ()=>{
+  const sel = document.getElementById('map-selector');
+  if(!sel.value) return;
+  currentMapId = sel.value;
+  currentMapName = sel.selectedOptions[0]?.textContent || '';
+  startListening();
 });
 
-async function deleteMap(mapId){
-  const pointsSnap = await db.collection('ban_do').doc(mapId).collection('diem').get();
-  await Promise.all(pointsSnap.docs.map(d=>d.ref.delete()));
-  await db.collection('ban_do').doc(mapId).delete();
-}
-
-function openMap(mapId, mapName){
-  currentMapId = mapId;
-  currentMapName = mapName;
-  document.getElementById('current-map-title').textContent = mapName;
-  if(unsubscribeMaps){ unsubscribeMaps(); unsubscribeMaps = null; }
-  document.getElementById('map-select-screen').style.display = 'none';
-  document.getElementById('app-root').style.display = 'block';
-  switchTab('form');
+document.getElementById('btn-new-map').addEventListener('click', async ()=>{
+  const ten = prompt('Tên bản đồ mới, VD: Tuyến 371 Vĩnh Linh:');
+  if(!ten || !ten.trim()) return;
+  const docRef = await db.collection('ban_do').add({ ten: ten.trim(), thoigian_tao: new Date().toISOString(), soDiem: 0 }).catch(err=>{
+    alert('Lỗi tạo bản đồ: ' + err.message);
+    return null;
+  });
+  if(!docRef) return;
+  currentMapId = docRef.id;
+  currentMapName = ten.trim();
   startListening();
-}
-
-document.getElementById('btn-back-maps').addEventListener('click', (e)=>{
-  e.preventDefault();
-  showMapSelect();
 });
 
 function startListening(){
@@ -713,6 +656,7 @@ document.getElementById('btn-lock').addEventListener('click', ()=>{
 
 document.getElementById('btn-save').addEventListener('click', async ()=>{
   const msg = document.getElementById('form-msg');
+  if(!currentMapId){ msg.textContent = 'Chưa có bản đồ nào — bấm "+ Bản đồ mới" ở trên cùng trước.'; return; }
   const loai = document.getElementById('f-loai').value;
   const ma = document.getElementById('f-ma').value.trim();
   const lat = document.getElementById('f-lat').value.trim();
@@ -955,6 +899,7 @@ document.getElementById('btn-import-excel').addEventListener('click', ()=> docum
 document.getElementById('import-excel-input').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
+  if(!currentMapId){ alert('Chưa có bản đồ nào — tạo bản đồ trước khi nhập dữ liệu.'); e.target.value=''; return; }
   try{
     const data = await file.arrayBuffer();
     const wb = XLSX.read(data, { type:'array' });
@@ -998,6 +943,7 @@ document.getElementById('btn-import-kmz').addEventListener('click', ()=> documen
 document.getElementById('import-kmz-input').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
+  if(!currentMapId){ alert('Chưa có bản đồ nào — tạo bản đồ trước khi nhập dữ liệu.'); e.target.value=''; return; }
   try{
     let kmlText;
     if(file.name.toLowerCase().endsWith('.kmz')){

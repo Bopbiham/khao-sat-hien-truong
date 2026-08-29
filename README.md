@@ -68,6 +68,18 @@ so với cho phép bất kỳ ai đăng nhập ẩn danh.
 3. **iPhone (Safari)**: nút Chia sẻ → **Thêm vào MH chính** (Add to Home Screen).
 4. Icon app sẽ xuất hiện như app thật, mở lên full màn hình, không thanh địa chỉ trình duyệt.
 
+## Cấu trúc bản đồ (mới)
+
+Từ bản này, app tổ chức dữ liệu theo **bản đồ** (dự án khảo sát), mỗi bản đồ chứa các
+**điểm** khảo sát riêng — các bản đồ hoàn toàn độc lập với nhau.
+
+- Sau khi đăng nhập, app hiện màn hình **"Chọn bản đồ khảo sát"** — tạo bản đồ mới
+  (đặt tên, VD: "Tuyến 371 Vĩnh Linh") hoặc mở lại bản đồ đã có.
+- Vào trong 1 bản đồ mới thấy 3 tab quen thuộc: Ghi nhận / Danh sách / Bản đồ — mọi thao
+  tác (thêm điểm, nhập Excel/KMZ, xuất CSV/KMZ) chỉ áp dụng cho bản đồ đang mở.
+- Bấm **"← Đổi bản đồ"** ở góc trên để quay lại màn hình chọn, mở bản đồ khác hoặc tạo mới.
+- Xóa 1 bản đồ ở màn hình chọn sẽ xóa toàn bộ điểm bên trong, không thể hoàn tác.
+
 ## Ghi chú vận hành
 
 - App dùng **Google Sign-In** — mở app lần đầu sẽ hiện màn hình đăng nhập, bấm

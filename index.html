@@ -68,7 +68,10 @@
   .card-meta{ font-size:12px; color:var(--text-dim); margin-top:4px; font-family:'Courier New',monospace; }
   .card-note{ font-size:13.5px; margin-top:8px; color:var(--text); }
   .card-photos{ display:flex; gap:6px; margin-top:9px; overflow-x:auto; }
-  .card-photos img{ width:56px; height:56px; object-fit:cover; border-radius:4px; border:1px solid var(--border); flex-shrink:0; }
+  .card-photos img{ width:56px; height:56px; object-fit:cover; border-radius:4px; border:1px solid var(--border); flex-shrink:0; cursor:pointer; }
+  .img-lightbox{ position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .img-lightbox img{ max-width:100%; max-height:100%; border-radius:6px; }
+  .img-lightbox-close{ position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.15); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; }
   .card-actions{ display:flex; gap:8px; margin-top:10px; }
   .empty{ text-align:center; color:var(--text-dim); font-size:13.5px; padding:40px 10px; }
   #map{ height:260px; border-radius:8px; margin-bottom:14px; border:1px solid var(--border); }
@@ -403,6 +406,7 @@ function startListening(){
     populateRefSelect();
     if(document.getElementById('tab-list').classList.contains('active')) renderList();
     if(document.getElementById('tab-map').classList.contains('active')) renderMap();
+    if(document.getElementById('pin-map-wrap').style.display !== 'none') renderPinMapContext();
   }, err=>{
     document.getElementById('header-count').textContent = 'Lỗi đồng bộ: ' + err.message;
   });
@@ -452,11 +456,12 @@ function renderPhotoPreview(){
   pendingPhotos.forEach((src, i)=>{
     const div = document.createElement('div');
     div.className = 'photo-thumb';
-    div.innerHTML = `<img src="${src}"><div class="rm" data-i="${i}">✕</div>`;
+    div.innerHTML = `<img src="${src}" onclick="openLightbox(this.src)"><div class="rm" data-i="${i}">✕</div>`;
     grid.appendChild(div);
   });
   grid.querySelectorAll('.rm').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
       pendingPhotos.splice(Number(el.dataset.i), 1);
       renderPhotoPreview();
     });
@@ -515,6 +520,22 @@ document.getElementById('btn-quickgps').addEventListener('click', ()=>{
 
 let pinMap = null, pinMarker = null;
 let pinTileLayers = null;
+let pinContextLayer = null;
+
+function renderPinMapContext(){
+  if(!pinMap) return;
+  if(!pinContextLayer) pinContextLayer = L.layerGroup().addTo(pinMap);
+  pinContextLayer.clearLayers();
+  records.forEach(r=>{
+    if(r.hinhthuc === 'duong' && Array.isArray(r.toado) && r.toado.length > 1){
+      L.polyline(r.toado, { color:'#8a8a86', weight:2, opacity:0.7, dashArray:'5,5' }).addTo(pinContextLayer);
+      return;
+    }
+    if(typeof r.lat !== 'number' || typeof r.lng !== 'number') return;
+    const m = L.circleMarker([r.lat, r.lng], { radius:5, color:'#7fa8d6', fillColor:'#7fa8d6', fillOpacity:0.8, weight:1.5 }).addTo(pinContextLayer);
+    m.bindTooltip(r.ma, { permanent:true, direction:'top', offset:[0,-5], className:'map-label' });
+  });
+}
 
 function switchPinTile(kind){
   if(!pinMap || !pinTileLayers) return;
@@ -561,6 +582,7 @@ function initPinMap(){
     pinMap.setView(center, zoom);
   }
   if(hasPoint) setPin(latVal, lngVal);
+  renderPinMapContext();
   setTimeout(()=>pinMap.invalidateSize(), 100);
 }
 
@@ -770,7 +792,7 @@ function renderList(){
         <div class="card-meta">${r.lat.toFixed(6)}, ${r.lng.toFixed(6)} · ${dtStr}${r.loaicot ? ' · ' + r.loaicot : ''}${r.chedokhaosat==='khoang_neo' ? ' · khoảng néo' : ''}</div>
         ${r.tinhtrang ? `<div class="card-note"><b>Tình trạng:</b> ${escapeHtml(r.tinhtrang)}</div>` : ''}
         ${r.ghichu ? `<div class="card-note">${escapeHtml(r.ghichu)}</div>` : ''}
-        ${(r.images||[]).length ? `<div class="card-photos">${r.images.map(src=>`<img src="${src}">`).join('')}</div>` : ''}
+        ${(r.images||[]).length ? `<div class="card-photos">${r.images.map(src=>`<img src="${src}" onclick="openLightbox(this.src)">`).join('')}</div>` : ''}
         <div class="card-actions">
           <button class="btn btn-sm btn-outline" onclick="openInMaps(${r.lat},${r.lng})">Mở bản đồ</button>
           <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')">Xóa</button>
@@ -782,6 +804,17 @@ function renderList(){
 document.getElementById('filter-loai').addEventListener('change', renderList);
 
 function openInMaps(lat, lng){ window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
+
+function openLightbox(src){
+  document.getElementById('img-lightbox-img').src = src;
+  document.getElementById('img-lightbox').style.display = 'flex';
+}
+function closeLightbox(){
+  document.getElementById('img-lightbox').style.display = 'none';
+  document.getElementById('img-lightbox-img').src = '';
+}
+document.getElementById('img-lightbox').addEventListener('click', closeLightbox);
+document.getElementById('img-lightbox-close').addEventListener('click', closeLightbox);
 
 function escapeHtml(s){
   const d = document.createElement('div');
@@ -834,13 +867,13 @@ function renderMap(){
 
 document.getElementById('btn-export').addEventListener('click', ()=>{
   if(records.length===0){ alert('Chưa có dữ liệu để xuất.'); return; }
-  const header = ['Mã','Loại','Loại cột','Chế độ khảo sát','Nguồn','Vĩ độ','Kinh độ','Tình trạng','Ghi chú','Số ảnh','Thời gian'];
+  const header = ['Bản đồ','Mã','Loại','Loại cột','Chế độ khảo sát','Nguồn','Vĩ độ','Kinh độ','Tình trạng','Ghi chú','Số ảnh','Thời gian'];
   const rows = records.map(r=>{
     if(r.hinhthuc === 'duong'){
       const len = lineLengthMeters(r.toado || []);
       const first = (r.toado && r.toado[0]) || [r.lat, r.lng];
       return [
-        r.ma, r.loai, '', 'Tuyến (KMZ)',
+        currentMapName, r.ma, r.loai, '', 'Tuyến (KMZ)',
         r.nguon==='import' ? 'Nhập từ file' : 'Khảo sát thực địa',
         first[0], first[1], r.tinhtrang||'',
         `Tuyến ${(r.toado||[]).length} đỉnh, dài ~${(len/1000).toFixed(2)}km. ${r.ghichu||''}`.trim(),
@@ -848,7 +881,7 @@ document.getElementById('btn-export').addEventListener('click', ()=>{
       ];
     }
     return [
-      r.ma, r.loai, r.loaicot||'',
+      currentMapName, r.ma, r.loai, r.loaicot||'',
       r.chedokhaosat==='khoang_neo' ? 'Khoảng néo' : (r.chedokhaosat==='tung_cot' ? 'Từng cột' : ''),
       r.nguon==='import' ? 'Nhập từ file' : 'Khảo sát thực địa',
       r.lat, r.lng, r.tinhtrang||'', (r.ghichu||'').replace(/\n/g,' '), (r.images||[]).length, r.thoigian
@@ -1011,6 +1044,11 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', ()=> navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 </script>
+
+<div id="img-lightbox" class="img-lightbox" style="display:none;">
+  <div class="img-lightbox-close" id="img-lightbox-close">✕</div>
+  <img id="img-lightbox-img" src="" alt="Ảnh hiện trường">
+</div>
 
 </body>
 </html>

@@ -96,6 +96,14 @@
   .map-selector-row{ display:flex; gap:8px; margin-top:10px; }
   .map-selector-row select{ flex:1; background:var(--panel2); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:var(--radius); font-size:13.5px; }
   .map-selector-row .btn{ white-space:nowrap; }
+  .map-list-section{ margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+  .map-list-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .map-list-header h3{ margin:0; font-size:14px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.4px; }
+  .map-card{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 13px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; }
+  .map-card.active{ border-color:var(--amber); }
+  .map-card-name{ font-size:14px; font-weight:600; }
+  .map-card-name .tag-active{ color:var(--amber); font-size:11px; margin-left:6px; font-weight:600; }
+  .map-card-meta{ font-size:11.5px; color:var(--text-dim); margin-top:2px; font-family:'Courier New',monospace; }
   .leaflet-tooltip.map-label{ background:rgba(27,29,31,0.92); border:1px solid var(--border); color:var(--text); font-size:11px; padding:2px 6px; border-radius:4px; box-shadow:none; font-family:'Courier New',monospace; }
   .leaflet-tooltip.map-label::before{ display:none; }
 
@@ -233,6 +241,14 @@
   </section>
 
   <section id="tab-list">
+    <div class="map-list-section">
+      <div class="map-list-header">
+        <h3>Bản đồ</h3>
+        <button class="btn btn-sm btn-outline" id="btn-new-map-2" type="button">+ Tạo mới</button>
+      </div>
+      <div id="map-list-container"></div>
+    </div>
+
     <div class="list-toolbar">
       <select id="filter-loai">
         <option value="">Tất cả loại</option>
@@ -242,7 +258,7 @@
     </div>
     <div class="export-row">
       <button class="btn btn-outline btn-block" id="btn-export">↓ Xuất CSV</button>
-      <button class="btn btn-outline btn-block" id="btn-export-kmz">↓ Xuất KMZ</button>
+      <button class="btn btn-outline btn-block" id="btn-export-kmz">↓ Xuất KML</button>
     </div>
     <div class="export-row" style="margin-top:8px;">
       <button class="btn btn-outline btn-block" id="btn-import-excel">↑ Nhập Excel</button>
@@ -359,6 +375,7 @@ function populateMapSelector(maps){
     records = [];
     updateHeaderCount();
     if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+    renderMapCards(maps);
     if(document.getElementById('tab-list').classList.contains('active')) renderList();
     if(document.getElementById('tab-map').classList.contains('active')) renderMap();
     return;
@@ -369,18 +386,54 @@ function populateMapSelector(maps){
   sel.value = target.id;
   currentMapId = target.id;
   currentMapName = target.ten || '(Không tên)';
+  renderMapCards(maps);
   if(!unsubscribe) startListening();
 }
 
-document.getElementById('map-selector').addEventListener('change', ()=>{
-  const sel = document.getElementById('map-selector');
-  if(!sel.value) return;
-  currentMapId = sel.value;
-  currentMapName = sel.selectedOptions[0]?.textContent || '';
-  startListening();
-});
+function renderMapCards(maps){
+  const container = document.getElementById('map-list-container');
+  if(maps.length === 0){
+    container.innerHTML = '<div class="empty">Chưa có bản đồ nào. Bấm "+ Tạo mới" để bắt đầu.</div>';
+    return;
+  }
+  container.innerHTML = maps.map(m=>{
+    const isActive = m.id === currentMapId;
+    const dt = m.thoigian_tao ? new Date(m.thoigian_tao) : null;
+    const dtStr = dt ? dt.toLocaleDateString('vi-VN') : '';
+    return `
+      <div class="map-card ${isActive ? 'active' : ''}" data-id="${m.id}" data-name="${escapeHtml(m.ten || '(Không tên)')}">
+        <div>
+          <div class="map-card-name">${escapeHtml(m.ten || '(Không tên)')}${isActive ? '<span class="tag-active">● đang xem</span>' : ''}</div>
+          <div class="map-card-meta">${m.soDiem || 0} điểm · tạo ${dtStr}</div>
+        </div>
+        <button class="btn btn-sm btn-danger" data-del="${m.id}" type="button">Xóa</button>
+      </div>`;
+  }).join('');
+  container.querySelectorAll('.map-card').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-del]')) return;
+      if(el.dataset.id === currentMapId) return;
+      switchToMap(el.dataset.id, el.dataset.name);
+    });
+  });
+  container.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      if(!confirm('Xóa bản đồ này và toàn bộ điểm khảo sát bên trong? Không thể hoàn tác.')) return;
+      btn.textContent = '...';
+      await deleteMap(btn.dataset.del);
+    });
+  });
+}
 
-document.getElementById('btn-new-map').addEventListener('click', async ()=>{
+function switchToMap(mapId, mapName){
+  currentMapId = mapId;
+  currentMapName = mapName;
+  document.getElementById('map-selector').value = mapId;
+  startListening();
+}
+
+async function createNewMap(){
   const ten = prompt('Tên bản đồ mới, VD: Tuyến 371 Vĩnh Linh:');
   if(!ten || !ten.trim()) return;
   const docRef = await db.collection('ban_do').add({ ten: ten.trim(), thoigian_tao: new Date().toISOString(), soDiem: 0 }).catch(err=>{
@@ -391,7 +444,27 @@ document.getElementById('btn-new-map').addEventListener('click', async ()=>{
   currentMapId = docRef.id;
   currentMapName = ten.trim();
   startListening();
+}
+
+async function deleteMap(mapId){
+  const wasCurrentMap = mapId === currentMapId;
+  const pointsSnap = await db.collection('ban_do').doc(mapId).collection('diem').get();
+  await Promise.all(pointsSnap.docs.map(d=>d.ref.delete()));
+  await db.collection('ban_do').doc(mapId).delete();
+  if(wasCurrentMap){
+    if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+    currentMapId = null;
+  }
+}
+
+document.getElementById('map-selector').addEventListener('change', ()=>{
+  const sel = document.getElementById('map-selector');
+  if(!sel.value) return;
+  switchToMap(sel.value, sel.selectedOptions[0]?.textContent || '');
 });
+
+document.getElementById('btn-new-map').addEventListener('click', createNewMap);
+document.getElementById('btn-new-map-2').addEventListener('click', createNewMap);
 
 function startListening(){
   if(unsubscribe) unsubscribe();
@@ -813,8 +886,6 @@ function closeLightbox(){
   document.getElementById('img-lightbox').style.display = 'none';
   document.getElementById('img-lightbox-img').src = '';
 }
-document.getElementById('img-lightbox').addEventListener('click', closeLightbox);
-document.getElementById('img-lightbox-close').addEventListener('click', closeLightbox);
 
 function escapeHtml(s){
   const d = document.createElement('div');
@@ -917,13 +988,11 @@ document.getElementById('btn-export-kmz').addEventListener('click', async ()=>{
     return `<Placemark><name>${escapeXml(r.ma)}</name><description><![CDATA[${desc}]]></description><Point><coordinates>${r.lng},${r.lat},0</coordinates></Point></Placemark>`;
   }).join('\n');
   const kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${escapeXml(currentMapName)}</name>\n${placemarks}\n</Document></kml>`;
-  const zip = new JSZip();
-  zip.file('doc.kml', kml);
-  const blob = await zip.generateAsync({ type:'blob' });
+  const blob = new Blob([kml], { type:'application/vnd.google-earth.kml+xml;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = slugifyMapName() + '-' + new Date().toISOString().slice(0,10) + '.kmz';
+  a.download = slugifyMapName() + '-' + new Date().toISOString().slice(0,10) + '.kml';
   a.click();
   URL.revokeObjectURL(url);
 });
@@ -1045,8 +1114,8 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<div id="img-lightbox" class="img-lightbox" style="display:none;">
-  <div class="img-lightbox-close" id="img-lightbox-close">✕</div>
+<div id="img-lightbox" class="img-lightbox" style="display:none;" onclick="closeLightbox()">
+  <div class="img-lightbox-close" id="img-lightbox-close" onclick="closeLightbox()">✕</div>
   <img id="img-lightbox-img" src="" alt="Ảnh hiện trường">
 </div>
 

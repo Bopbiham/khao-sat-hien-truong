@@ -135,8 +135,8 @@ App đọc được cả 2 dạng: **điểm** (Point — cột, trạm) và **t
 trong danh sách hiện số đỉnh và tổng chiều dài ước tính. Vùng khoanh (Polygon) chưa hỗ trợ,
 sẽ báo số lượng bị bỏ qua sau khi nhập.
 
-## Xuất KMZ
+## Xuất KML
 
-Tab **Danh sách > ↓ Xuất KMZ** — xuất toàn bộ điểm đã khảo sát thành file `.kmz`, mở
-trực tiếp bằng Google Earth hoặc Google My Maps để trình bày, báo cáo, hoặc gửi cho
-đơn vị thiết kế.
+Tab **Danh sách > ↓ Xuất KML** — xuất toàn bộ điểm đã khảo sát thành file `.kml` (văn bản
+thuần, không nén) — mở trực tiếp bằng Google Earth ngay trong mục Downloads của điện thoại/
+máy tính, không cần giải nén như định dạng `.kmz`.

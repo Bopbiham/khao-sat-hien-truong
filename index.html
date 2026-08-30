@@ -57,8 +57,11 @@
   .photo-thumb .rm{ position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,.65); color:#fff; font-size:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .save-bar{ margin-top:20px; }
   .form-msg{ font-size:12.5px; color:var(--danger); margin-top:8px; min-height:16px; }
-  .list-toolbar{ display:flex; gap:8px; margin-bottom:12px; }
+  .list-toolbar{ display:flex; gap:8px; margin-bottom:12px; align-items:stretch; }
   .list-toolbar select{ flex:1; }
+  .join-bar{ display:flex; justify-content:space-between; align-items:center; background:var(--panel2); border:1px solid var(--amber); border-radius:var(--radius); padding:10px 12px; margin-bottom:12px; font-size:13px; }
+  .join-badge{ width:24px; height:24px; border-radius:50%; border:1.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-dim); flex-shrink:0; cursor:pointer; }
+  .join-badge.selected{ background:var(--amber); border-color:var(--amber); color:#26210e; font-weight:700; }
   .card{ background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 13px; margin-bottom:10px; }
   .card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
   .card-ma{ font-size:15px; font-weight:600; font-family:'Courier New',monospace; }
@@ -72,6 +75,8 @@
   .img-lightbox{ position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:200; display:flex; align-items:center; justify-content:center; padding:24px; }
   .img-lightbox img{ max-width:100%; max-height:100%; border-radius:6px; }
   .img-lightbox-close{ position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.15); color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; }
+  .img-lightbox-nav{ position:absolute; bottom:24px; left:0; right:0; display:flex; align-items:center; justify-content:center; gap:20px; color:#fff; font-size:13px; }
+  .img-lightbox-arrow{ width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-size:24px; cursor:pointer; }
   .card-actions{ display:flex; gap:8px; margin-top:10px; }
   .empty{ text-align:center; color:var(--text-dim); font-size:13.5px; padding:40px 10px; }
   #map{ height:260px; border-radius:8px; margin-bottom:14px; border:1px solid var(--border); }
@@ -255,6 +260,14 @@
         <option value="Trạm biến áp">Trạm biến áp</option>
         <option value="Đường dây">Đường dây</option>
       </select>
+      <button class="btn btn-outline btn-sm" id="btn-join-mode" type="button">🔗 Nối thành tuyến</button>
+    </div>
+    <div id="join-bar" class="join-bar" style="display:none;">
+      <span id="join-count">Đã chọn 0 điểm</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-sm btn-outline" id="btn-join-cancel" type="button">Hủy</button>
+        <button class="btn btn-sm btn-amber" id="btn-join-create" type="button">Tạo tuyến</button>
+      </div>
     </div>
     <div class="export-row">
       <button class="btn btn-outline btn-block" id="btn-export">↓ Xuất CSV</button>
@@ -500,25 +513,39 @@ function compressImage(file){
     reader.onload = e => { img.src = e.target.result; };
     reader.onerror = reject;
     img.onload = () => {
-      const maxW = 700;
+      const maxW = 1400;
       const scale = Math.min(1, maxW / img.width);
       const canvas = document.createElement('canvas');
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.5));
+      resolve(canvas.toDataURL('image/jpeg', 0.72));
     };
     img.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
 
+function slugifyForFile(s){
+  return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/gi,'d').replace(/[^a-zA-Z0-9]+/g,'').slice(0,30);
+}
+
 function saveOriginalToDevice(file){
+  const ma = slugifyForFile(document.getElementById('f-ma').value) || 'chuaco';
+  const loaicotEl = document.getElementById('f-loaicot');
+  const loaicot = (loaicotEl && loaicotEl.closest('div').style.display !== 'none') ? slugifyForFile(loaicotEl.value) : '';
+  const lat = document.getElementById('f-lat').value;
+  const lng = document.getElementById('f-lng').value;
+  const toadoStr = (lat && lng) ? `_${lat}-${lng}` : '';
+  const ts = new Date().toISOString().replace(/[:.]/g,'-');
+  const parts = ['khaosat', ma, loaicot, ts].filter(Boolean);
+  const filename = parts.join('_') + toadoStr + '.jpg';
+
   const url = URL.createObjectURL(file);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'khaosat-' + Date.now() + '-' + Math.random().toString(36).slice(2,6) + '.jpg';
+  a.download = filename;
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 3000);
 }
@@ -781,12 +808,15 @@ document.getElementById('btn-save').addEventListener('click', async ()=>{
     chedokhaosat: loai==='Đường dây' ? currentMode : null,
     hinhthuc: 'diem', toado: null,
     nguon: 'khao_sat',
-    images: pendingPhotos.slice(),
+    images: [], soAnh: pendingPhotos.length,
     thoigian: new Date().toISOString()
   };
 
   try{
-    await pointsCol().add(docData);
+    const docRef = await pointsCol().add(docData);
+    for(const src of pendingPhotos){
+      await pointsCol().doc(docRef.id).collection('anh').add({ data: src, thoigian: new Date().toISOString() });
+    }
     db.collection('ban_do').doc(currentMapId).update({ soDiem: firebase.firestore.FieldValue.increment(1) }).catch(()=>{});
   }catch(err){
     msg.textContent = 'Lỗi khi lưu: ' + err.message;
@@ -817,6 +847,8 @@ function updateHeaderCount(){
 async function deleteRecord(id){
   if(!confirm('Xóa điểm khảo sát này?')) return;
   try{
+    const anhSnap = await pointsCol().doc(id).collection('anh').get();
+    await Promise.all(anhSnap.docs.map(d=>d.ref.delete()));
     await pointsCol().doc(id).delete();
     db.collection('ban_do').doc(currentMapId).update({ soDiem: firebase.firestore.FieldValue.increment(-1) }).catch(()=>{});
   }catch(err){}
@@ -829,6 +861,9 @@ function lineLengthMeters(coords){
   }
   return total;
 }
+
+let joinMode = false;
+let joinSelection = [];
 
 function renderList(){
   const container = document.getElementById('list-container');
@@ -865,10 +900,13 @@ function renderList(){
     const badgeClass = r.loai==='Trạm biến áp' ? 'badge-tram' : 'badge-duong';
     const dt = new Date(r.thoigian);
     const dtStr = dt.toLocaleDateString('vi-VN') + ' ' + dt.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    const joinIdx = joinSelection.indexOf(r.id);
+    const joinBadge = joinMode ? `<div class="join-badge ${joinIdx>=0?'selected':''}" data-join="${r.id}">${joinIdx>=0 ? (joinIdx+1) : ''}</div>` : '';
     return `
       <div class="card">
         <div class="card-top">
-          <div class="card-ma">${escapeHtml(r.ma)}</div>
+          ${joinBadge}
+          <div class="card-ma" style="flex:1;">${escapeHtml(r.ma)}</div>
           <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
             ${r.nguon==='import' ? '<span class="badge badge-import">Nhập từ file</span>' : ''}
             <span class="badge ${badgeClass}">${r.loai}</span>
@@ -877,26 +915,132 @@ function renderList(){
         <div class="card-meta">${r.lat.toFixed(6)}, ${r.lng.toFixed(6)} · ${dtStr}${r.loaicot ? ' · ' + r.loaicot : ''}${r.chedokhaosat==='khoang_neo' ? ' · khoảng néo' : ''}</div>
         ${r.tinhtrang ? `<div class="card-note"><b>Tình trạng:</b> ${escapeHtml(r.tinhtrang)}</div>` : ''}
         ${r.ghichu ? `<div class="card-note">${escapeHtml(r.ghichu)}</div>` : ''}
-        ${(r.images||[]).length ? `<div class="card-photos">${r.images.map(src=>`<img src="${src}" onclick="openLightbox(this.src)">`).join('')}</div>` : ''}
         <div class="card-actions">
           <button class="btn btn-sm btn-outline" onclick="openInMaps(${r.lat},${r.lng})">Mở bản đồ</button>
+          ${((r.images && r.images.length) || r.soAnh) ? `<button class="btn btn-sm btn-outline" onclick="viewPointPhotos('${r.id}')">🖼 Xem ${(r.images && r.images.length) || r.soAnh} ảnh</button>` : ''}
           <button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')">Xóa</button>
         </div>
       </div>
     `;
   }).join('');
+
+  if(joinMode){
+    container.querySelectorAll('[data-join]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const id = el.dataset.join;
+        const idx = joinSelection.indexOf(id);
+        if(idx >= 0) joinSelection.splice(idx, 1);
+        else joinSelection.push(id);
+        renderList();
+        updateJoinBar();
+      });
+    });
+  }
 }
 document.getElementById('filter-loai').addEventListener('change', renderList);
 
+function updateJoinBar(){
+  document.getElementById('join-bar').style.display = joinMode ? 'flex' : 'none';
+  document.getElementById('join-count').textContent = `Đã chọn ${joinSelection.length} điểm`;
+}
+
+document.getElementById('btn-join-mode').addEventListener('click', ()=>{
+  joinMode = true;
+  joinSelection = [];
+  updateJoinBar();
+  renderList();
+});
+
+document.getElementById('btn-join-cancel').addEventListener('click', ()=>{
+  joinMode = false;
+  joinSelection = [];
+  updateJoinBar();
+  renderList();
+});
+
+document.getElementById('btn-join-create').addEventListener('click', async ()=>{
+  if(joinSelection.length < 2){ alert('Chọn ít nhất 2 điểm để nối thành tuyến.'); return; }
+  const ten = prompt('Tên tuyến đường dây mới:');
+  if(!ten || !ten.trim()) return;
+  const toado = joinSelection.map(id=>{
+    const r = records.find(x=>x.id===id);
+    return [r.lat, r.lng];
+  });
+  const docData = {
+    ma: ten.trim(), loai: 'Đường dây', hinhthuc: 'duong', toado,
+    lat: toado[0][0], lng: toado[0][1],
+    loaicot: null, chedokhaosat: null,
+    tinhtrang: '', ghichu: `Tạo từ nối ${joinSelection.length} điểm đã khảo sát`,
+    nguon: 'khao_sat', images: [], soAnh: 0,
+    thoigian: new Date().toISOString()
+  };
+  try{
+    await pointsCol().add(docData);
+    db.collection('ban_do').doc(currentMapId).update({ soDiem: firebase.firestore.FieldValue.increment(1) }).catch(()=>{});
+  }catch(err){
+    alert('Lỗi tạo tuyến: ' + err.message);
+    return;
+  }
+  joinMode = false;
+  joinSelection = [];
+  updateJoinBar();
+});
+
 function openInMaps(lat, lng){ window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
 
+let galleryPhotos = [];
+let galleryIndex = 0;
+
 function openLightbox(src){
-  document.getElementById('img-lightbox-img').src = src;
+  galleryPhotos = [src];
+  galleryIndex = 0;
+  showGalleryImage();
   document.getElementById('img-lightbox').style.display = 'flex';
 }
+
+function showGalleryImage(){
+  document.getElementById('img-lightbox-img').src = galleryPhotos[galleryIndex] || '';
+  const nav = document.getElementById('img-lightbox-nav');
+  nav.style.display = galleryPhotos.length > 1 ? 'flex' : 'none';
+  document.getElementById('img-lightbox-count').textContent = (galleryIndex+1) + ' / ' + galleryPhotos.length;
+}
+
+function galleryPrev(e){
+  e.stopPropagation();
+  galleryIndex = (galleryIndex - 1 + galleryPhotos.length) % galleryPhotos.length;
+  showGalleryImage();
+}
+function galleryNext(e){
+  e.stopPropagation();
+  galleryIndex = (galleryIndex + 1) % galleryPhotos.length;
+  showGalleryImage();
+}
+
 function closeLightbox(){
   document.getElementById('img-lightbox').style.display = 'none';
   document.getElementById('img-lightbox-img').src = '';
+}
+
+async function viewPointPhotos(pointId){
+  const rec = records.find(r=>r.id===pointId);
+  if(!rec) return;
+  let photos = [];
+  if(rec.images && rec.images.length){
+    photos = rec.images;
+  } else {
+    try{
+      const snap = await pointsCol().doc(pointId).collection('anh').orderBy('thoigian').get();
+      photos = snap.docs.map(d=>d.data().data);
+    }catch(err){
+      alert('Lỗi tải ảnh: ' + err.message);
+      return;
+    }
+  }
+  if(photos.length === 0){ alert('Không có ảnh cho điểm này.'); return; }
+  galleryPhotos = photos;
+  galleryIndex = 0;
+  showGalleryImage();
+  document.getElementById('img-lightbox').style.display = 'flex';
 }
 
 function escapeHtml(s){
@@ -1129,6 +1273,11 @@ if('serviceWorker' in navigator){
 <div id="img-lightbox" class="img-lightbox" style="display:none;" onclick="closeLightbox()">
   <div class="img-lightbox-close" id="img-lightbox-close" onclick="closeLightbox()">✕</div>
   <img id="img-lightbox-img" src="" alt="Ảnh hiện trường">
+  <div id="img-lightbox-nav" class="img-lightbox-nav" style="display:none;">
+    <div class="img-lightbox-arrow" onclick="galleryPrev(event)">‹</div>
+    <div class="img-lightbox-count" id="img-lightbox-count">1 / 1</div>
+    <div class="img-lightbox-arrow" onclick="galleryNext(event)">›</div>
+  </div>
 </div>
 
 </body>

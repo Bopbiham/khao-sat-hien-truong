@@ -68,6 +68,29 @@ so với cho phép bất kỳ ai đăng nhập ẩn danh.
 3. **iPhone (Safari)**: nút Chia sẻ → **Thêm vào MH chính** (Add to Home Screen).
 4. Icon app sẽ xuất hiện như app thật, mở lên full màn hình, không thanh địa chỉ trình duyệt.
 
+## Ảnh hiện trường
+
+Mỗi ảnh chụp/chọn được lưu 2 nơi:
+- **Trong app (Firestore)**: bản nén (tối đa 1400px, chất lượng 72%) để xem lại nhanh,
+  đồng bộ qua nhiều thiết bị. Trong Danh sách, bấm nút **"🖼 Xem N ảnh"** để mở xem —
+  ảnh chỉ tải về khi bấm xem, không tải sẵn hết để danh sách mượt hơn.
+- **Trên điện thoại (Downloads)**: bản gốc chất lượng đầy đủ, tự động tải về ngay khi
+  chụp, đặt tên theo mã trạm/cột + tọa độ + thời gian (VD: `khaosat_VT12_Cotneo_2026-08-30T10-15-00_16.751-107.201.jpg`)
+  để dễ tìm lại đúng ảnh khớp với điểm khảo sát nào.
+
+Xem ảnh trong app hỗ trợ nhiều ảnh/điểm — có nút chuyển ảnh trước/sau khi mở.
+
+## Nối điểm thành tuyến đường dây
+
+Nếu đã khảo sát từng cột rời (VT1, VT2, VT3...) và muốn nối lại thành 1 đối tượng
+tuyến đường dây (giống vẽ tuyến trong Google Earth):
+
+1. Vào tab **Danh sách**, bấm **"🔗 Nối thành tuyến"**
+2. Bấm chọn lần lượt các điểm theo đúng thứ tự muốn nối (mỗi điểm chọn sẽ hiện số thứ tự)
+3. Bấm **"Tạo tuyến"**, đặt tên tuyến
+4. Tuyến mới xuất hiện như 1 đối tượng riêng (dạng đường nối liền) trên bản đồ và trong
+   danh sách — các điểm gốc vẫn được giữ nguyên, không bị xóa hay gộp mất dữ liệu.
+
 ## Cấu trúc bản đồ (mới)
 
 Từ bản này, app tổ chức dữ liệu theo **bản đồ** (dự án khảo sát), mỗi bản đồ chứa các

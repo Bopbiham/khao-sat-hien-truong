@@ -155,11 +155,11 @@
   <section id="tab-form" class="active">
     <label>Loại đối tượng</label>
     <select id="f-loai">
-      <option value="Trạm biến áp">Trạm biến áp</option>
       <option value="Đường dây">Đường dây</option>
+      <option value="Trạm biến áp">Trạm biến áp</option>
     </select>
 
-    <div id="loaicot-wrap" style="display:none;">
+    <div id="loaicot-wrap" style="display:block;">
       <label>Loại cột</label>
       <select id="f-loaicot">
         <option value="Cột đỡ">Cột đỡ</option>
@@ -170,7 +170,7 @@
     <label>Mã trạm / tuyến</label>
     <input type="text" id="f-ma" placeholder="VD: TBA-QT-014">
 
-    <div id="mode-wrap" style="display:none;">
+    <div id="mode-wrap" style="display:block;">
       <label>Chế độ khảo sát</label>
       <div class="mode-toggle">
         <button type="button" class="mode-btn active" id="mode-tungcot" data-mode="tung_cot">Từng cột</button>
@@ -514,11 +514,23 @@ function compressImage(file){
   });
 }
 
+function saveOriginalToDevice(file){
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'khaosat-' + Date.now() + '-' + Math.random().toString(36).slice(2,6) + '.jpg';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+}
+
 document.getElementById('btn-add-photo').addEventListener('click', ()=> document.getElementById('f-photo').click());
 document.getElementById('f-photo').addEventListener('change', async (e)=>{
   const files = Array.from(e.target.files);
   for(const file of files){
-    try{ pendingPhotos.push(await compressImage(file)); }catch(err){}
+    try{
+      pendingPhotos.push(await compressImage(file));
+      saveOriginalToDevice(file);
+    }catch(err){}
   }
   e.target.value = '';
   renderPhotoPreview();

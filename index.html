@@ -857,7 +857,7 @@ async function deleteRecord(id){
 function lineLengthMeters(coords){
   let total = 0;
   for(let i=1;i<coords.length;i++){
-    total += distMeters(coords[i-1][0], coords[i-1][1], coords[i][0], coords[i][1]);
+    total += distMeters(coords[i-1].lat, coords[i-1].lng, coords[i].lat, coords[i].lng);
   }
   return total;
 }
@@ -964,11 +964,11 @@ document.getElementById('btn-join-create').addEventListener('click', async ()=>{
   if(!ten || !ten.trim()) return;
   const toado = joinSelection.map(id=>{
     const r = records.find(x=>x.id===id);
-    return [r.lat, r.lng];
+    return { lat: r.lat, lng: r.lng };
   });
   const docData = {
     ma: ten.trim(), loai: 'Đường dây', hinhthuc: 'duong', toado,
-    lat: toado[0][0], lng: toado[0][1],
+    lat: toado[0].lat, lng: toado[0].lng,
     loaicot: null, chedokhaosat: null,
     tinhtrang: '', ghichu: `Tạo từ nối ${joinSelection.length} điểm đã khảo sát`,
     nguon: 'khao_sat', images: [], soAnh: 0,
@@ -1098,11 +1098,11 @@ document.getElementById('btn-export').addEventListener('click', ()=>{
   const rows = records.map(r=>{
     if(r.hinhthuc === 'duong'){
       const len = lineLengthMeters(r.toado || []);
-      const first = (r.toado && r.toado[0]) || [r.lat, r.lng];
+      const first = (r.toado && r.toado[0]) || { lat: r.lat, lng: r.lng };
       return [
         currentMapName, r.ma, r.loai, '', 'Tuyến (KMZ)',
         r.nguon==='import' ? 'Nhập từ file' : 'Khảo sát thực địa',
-        first[0], first[1], r.tinhtrang||'',
+        first.lat, first.lng, r.tinhtrang||'',
         `Tuyến ${(r.toado||[]).length} đỉnh, dài ~${(len/1000).toFixed(2)}km. ${r.ghichu||''}`.trim(),
         0, r.thoigian
       ];
@@ -1138,7 +1138,7 @@ document.getElementById('btn-export-kmz').addEventListener('click', async ()=>{
   const placemarks = records.map(r=>{
     const desc = [r.loai, r.loaicot, r.tinhtrang, r.ghichu].filter(Boolean).join(' — ');
     if(r.hinhthuc === 'duong' && Array.isArray(r.toado)){
-      const coordStr = r.toado.map(([lat,lng])=>`${lng},${lat},0`).join(' ');
+      const coordStr = r.toado.map(p=>`${p.lng},${p.lat},0`).join(' ');
       return `<Placemark><name>${escapeXml(r.ma)}</name><description><![CDATA[${desc}]]></description><LineString><tessellate>1</tessellate><coordinates>${coordStr}</coordinates></LineString></Placemark>`;
     }
     return `<Placemark><name>${escapeXml(r.ma)}</name><description><![CDATA[${desc}]]></description><Point><coordinates>${r.lng},${r.lat},0</coordinates></Point></Placemark>`;
@@ -1193,8 +1193,8 @@ document.getElementById('import-excel-input').addEventListener('change', async (
 function parseCoordsBlock(text){
   return text.trim().split(/\s+/).map(pair=>{
     const parts = pair.split(',');
-    return [parseFloat(parts[1]), parseFloat(parts[0])];
-  }).filter(p=>!isNaN(p[0]) && !isNaN(p[1]));
+    return { lat: parseFloat(parts[1]), lng: parseFloat(parts[0]) };
+  }).filter(p=>!isNaN(p.lat) && !isNaN(p.lng));
 }
 
 document.getElementById('btn-import-kmz').addEventListener('click', ()=> document.getElementById('import-kmz-input').click());
@@ -1228,7 +1228,7 @@ document.getElementById('import-kmz-input').addEventListener('change', async (e)
         await pointsCol().add({
           ma: nameEl ? nameEl.textContent.trim() : ('Tuyến-' + (countLine+1)),
           loai: 'Đường dây', hinhthuc: 'duong', toado: coords,
-          loaicot: null, chedokhaosat: null, lat: coords[0][0], lng: coords[0][1],
+          loaicot: null, chedokhaosat: null, lat: coords[0].lat, lng: coords[0].lng,
           tinhtrang: '', ghichu: descEl ? descEl.textContent.trim() : '',
           nguon: 'import', images: [],
           thoigian: new Date().toISOString()

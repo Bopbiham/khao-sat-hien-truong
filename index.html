@@ -460,13 +460,21 @@ async function createNewMap(){
 }
 
 async function deleteMap(mapId){
-  const wasCurrentMap = mapId === currentMapId;
-  const pointsSnap = await db.collection('ban_do').doc(mapId).collection('diem').get();
-  await Promise.all(pointsSnap.docs.map(d=>d.ref.delete()));
-  await db.collection('ban_do').doc(mapId).delete();
-  if(wasCurrentMap){
-    if(unsubscribe){ unsubscribe(); unsubscribe = null; }
-    currentMapId = null;
+  try{
+    const wasCurrentMap = mapId === currentMapId;
+    const pointsSnap = await db.collection('ban_do').doc(mapId).collection('diem').get();
+    for(const pointDoc of pointsSnap.docs){
+      const anhSnap = await pointDoc.ref.collection('anh').get();
+      await Promise.all(anhSnap.docs.map(a=>a.ref.delete()));
+    }
+    await Promise.all(pointsSnap.docs.map(d=>d.ref.delete()));
+    await db.collection('ban_do').doc(mapId).delete();
+    if(wasCurrentMap){
+      if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+      currentMapId = null;
+    }
+  }catch(err){
+    alert('Lỗi khi xóa bản đồ: ' + err.message);
   }
 }
 
@@ -851,7 +859,9 @@ async function deleteRecord(id){
     await Promise.all(anhSnap.docs.map(d=>d.ref.delete()));
     await pointsCol().doc(id).delete();
     db.collection('ban_do').doc(currentMapId).update({ soDiem: firebase.firestore.FieldValue.increment(-1) }).catch(()=>{});
-  }catch(err){}
+  }catch(err){
+    alert('Lỗi khi xóa: ' + err.message);
+  }
 }
 
 function lineLengthMeters(coords){
